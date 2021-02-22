@@ -23,7 +23,7 @@ Ideas:
 - https://github.com/HugoGresse/react-native-issue-30277/issues/1
 - submit your own ideas
 
-You can also setup a test project in this repository, though I'll maybe add one later on if this become useful. 
+You can use the android project from this repo to dig into the issue. 
 
 ## Related issues
 
