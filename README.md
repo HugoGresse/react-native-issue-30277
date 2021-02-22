@@ -2,7 +2,7 @@
 
 This repo aim to provide explanation, discussion and cross-project workaround ideas for the [React Native issue #30277](https://github.com/facebook/react-native/issues/30277). 
 
-### Issue:
+## Issue
 
 **Bug**: 
 Android ReactActivity destroy prevents successful onActivityResult calls for any native android module. This is the case when opening the camera using the `android.media.action.IMAGE_CAPTURE` intent, and in some case even the file picker. 
@@ -15,7 +15,7 @@ Details about this can be found on the issue by [zsweigart on RN repo #30277](ht
 - Xiaomi Redmi 8A with MIUI 12.0.1, verified ❎
 - _Add a pull request if you can reproduce this on other devices_
 
-### Workaround
+## Workaround
 
 This is a work in progress to patch the issue while it is maybe fix in a newer React-Native version. 
 
@@ -25,7 +25,7 @@ Ideas:
 
 You can also setup a test project in this repository, though I'll maybe add one later on if this become useful. 
 
-### Related issues: 
+## Related issues
 
 **react-native-image-crop-picker**
 - https://github.com/ivpusic/react-native-image-crop-picker/issues/955
