@@ -13,6 +13,8 @@ This is a first patch version, only for the camera, and has not been yet tested 
 
     ```java
     import com.facebook.react.ReactActivity;
+    
+    import android.content.Intent;
     import com.reactnative.ivpusic.imagepicker.patch30277.PickerModule30277Workaround;
     
     public class MainActivity extends ReactActivity {
