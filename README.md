@@ -17,13 +17,10 @@ Details about this can be found on the issue by [zsweigart on RN repo #30277](ht
 
 ## Workaround
 
-This is a work in progress to patch the issue while it is maybe fix in a newer React-Native version. 
+Available workaround: 
+- `react-native-image-crop-picker`, limited to single image, see [here](https://github.com/HugoGresse/react-native-issue-30277/blob/main/PATCH-react-native-image-crop-picker.md)
 
-Ideas:
-- https://github.com/HugoGresse/react-native-issue-30277/issues/1
-- submit your own ideas
-
-You can use the android project from this repo to dig into the issue. 
+You can use the Android project from this repo to dig into the issue and submit a patch for your own module. 
 
 ## Related issues
 
