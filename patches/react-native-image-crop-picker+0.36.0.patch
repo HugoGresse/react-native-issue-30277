@@ -1,31 +1,29 @@
 diff --git a/node_modules/react-native-image-crop-picker/android/src/main/java/com/reactnative/ivpusic/imagepicker/PickerModule.java b/node_modules/react-native-image-crop-picker/android/src/main/java/com/reactnative/ivpusic/imagepicker/PickerModule.java
-index c6b09a9..6ff68bb 100644
+index c6b09a9..01b5b71 100644
 --- a/node_modules/react-native-image-crop-picker/android/src/main/java/com/reactnative/ivpusic/imagepicker/PickerModule.java
 +++ b/node_modules/react-native-image-crop-picker/android/src/main/java/com/reactnative/ivpusic/imagepicker/PickerModule.java
-@@ -15,8 +15,10 @@ import android.os.Build;
- import android.os.Environment;
- import android.provider.MediaStore;
+@@ -17,6 +17,7 @@ import android.provider.MediaStore;
  import android.util.Base64;
  import android.webkit.MimeTypeMap;
-
+ 
 +import androidx.annotation.Nullable;
  import androidx.core.app.ActivityCompat;
  import androidx.core.content.FileProvider;
-
-@@ -32,6 +34,7 @@ import com.facebook.react.bridge.WritableMap;
+ 
+@@ -32,6 +33,7 @@ import com.facebook.react.bridge.WritableMap;
  import com.facebook.react.bridge.WritableNativeMap;
  import com.facebook.react.modules.core.PermissionAwareActivity;
  import com.facebook.react.modules.core.PermissionListener;
 +import com.reactnative.ivpusic.imagepicker.patch30277.Patch30277SharedPreferences;
  import com.yalantis.ucrop.UCrop;
  import com.yalantis.ucrop.UCropActivity;
-
-@@ -99,11 +102,14 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
+ 
+@@ -99,11 +101,14 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
      private ResultCollector resultCollector = new ResultCollector();
      private Compression compression = new Compression();
      private ReactApplicationContext reactContext;
 +    private @Nullable ReadableMap lastReadableMap;
-
+ 
      PickerModule(ReactApplicationContext reactContext) {
          super(reactContext);
          reactContext.addActivityEventListener(this);
@@ -33,28 +31,28 @@ index c6b09a9..6ff68bb 100644
 +
 +        this.recoverLastImageUri(reactContext);
      }
-
+ 
      private String getTmpDir(Activity activity) {
-@@ -119,6 +125,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
+@@ -119,6 +124,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
      }
-
+ 
      private void setConfiguration(final ReadableMap options) {
 +        Patch30277SharedPreferences.saveOptions(getReactApplicationContext(), options);
          mediaType = options.hasKey("mediaType") ? options.getString("mediaType") : "any";
          multiple = options.hasKey("multiple") && options.getBoolean("multiple");
          includeBase64 = options.hasKey("includeBase64") && options.getBoolean("includeBase64");
-@@ -283,6 +290,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
+@@ -283,6 +289,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
      @ReactMethod
      public void openCamera(final ReadableMap options, final Promise promise) {
          final Activity activity = getCurrentActivity();
 +        lastReadableMap = null;
-
+ 
          if (activity == null) {
              promise.reject(E_ACTIVITY_DOES_NOT_EXIST, "Activity doesn't exist");
-@@ -306,6 +314,27 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
+@@ -306,6 +313,27 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
          });
      }
-
+ 
 +    @ReactMethod
 +    public void recoverLastImageUri(final Promise promise) {
 +        if(lastReadableMap != null) {
@@ -77,52 +75,52 @@ index c6b09a9..6ff68bb 100644
 +    }
 +
      private void initiateCamera(Activity activity) {
-
+ 
          try {
-@@ -330,6 +359,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
+@@ -330,6 +358,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
                          dataFile);
              }
-
+ 
 +            Patch30277SharedPreferences.saveLastTempImageUri(activity, mCameraCaptureURI);
              cameraIntent.putExtra(MediaStore.EXTRA_OUTPUT, mCameraCaptureURI);
-
+ 
              if (this.useFrontCamera) {
-@@ -382,6 +412,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
+@@ -382,6 +411,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
      @ReactMethod
      public void openPicker(final ReadableMap options, final Promise promise) {
          final Activity activity = getCurrentActivity();
 +        lastReadableMap = null;
-
+ 
          if (activity == null) {
              promise.reject(E_ACTIVITY_DOES_NOT_EXIST, "Activity doesn't exist");
-@@ -403,6 +434,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
+@@ -403,6 +433,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
      @ReactMethod
      public void openCropper(final ReadableMap options, final Promise promise) {
          final Activity activity = getCurrentActivity();
 +        lastReadableMap = null;
-
+ 
          if (activity == null) {
              promise.reject(E_ACTIVITY_DOES_NOT_EXIST, "Activity doesn't exist");
-@@ -493,7 +525,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
+@@ -493,7 +524,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
              return;
          }
-
+ 
 -        resultCollector.notifySuccess(getImage(activity, path));
 +        this.notifySuccess(getImage(activity, path));
      }
-
+ 
      private Bitmap validateVideo(String path) throws Exception {
-@@ -541,7 +573,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
+@@ -541,7 +572,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
                              video.putString("path", "file://" + videoPath);
                              video.putString("modificationDate", String.valueOf(modificationDate));
-
+ 
 -                            resultCollector.notifySuccess(video);
 +                            PickerModule.this.notifySuccess(video);
                          } catch (Exception e) {
                              resultCollector.notifyProblem(E_NO_IMAGE_DATA_FOUND, e);
                          }
-@@ -748,7 +780,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
-
+@@ -748,7 +779,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
+ 
                      // If recording a video getSelection handles resultCollector part itself and returns null
                      if (result != null) {
 -                        resultCollector.notifySuccess(result);
@@ -130,16 +128,16 @@ index c6b09a9..6ff68bb 100644
                      }
                  } catch (Exception ex) {
                      resultCollector.notifyProblem(E_NO_IMAGE_DATA_FOUND, ex.getMessage());
-@@ -774,7 +806,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
+@@ -774,7 +805,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
                          result.putMap("cropRect", PickerModule.getCroppedRectMap(data));
-
+ 
                          resultCollector.setWaitCount(1);
 -                        resultCollector.notifySuccess(result);
 +                        this.notifySuccess(result);
                      } else {
                          throw new Exception("Cannot crop video files");
                      }
-@@ -795,6 +827,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
+@@ -795,6 +826,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
              imagePickerResult(activity, requestCode, resultCode, data);
          } else if (requestCode == CAMERA_PICKER_REQUEST) {
              cameraPickerResult(activity, requestCode, resultCode, data);
@@ -147,24 +145,24 @@ index c6b09a9..6ff68bb 100644
          } else if (requestCode == UCrop.REQUEST_CROP) {
              croppingResult(activity, requestCode, resultCode, data);
          }
-@@ -822,6 +855,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
-
+@@ -822,6 +854,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
+ 
          // Save a file: path for use with ACTION_VIEW intents
          mCurrentMediaPath = "file:" + image.getAbsolutePath();
 +        Patch30277SharedPreferences.saveCurrentMediaPath(getReactApplicationContext(), mCurrentMediaPath);
-
+ 
          return image;
-
-@@ -840,11 +874,19 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
-
+ 
+@@ -840,11 +873,19 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
+ 
          // Save a file: path for use with ACTION_VIEW intents
          mCurrentMediaPath = "file:" + video.getAbsolutePath();
 +        Patch30277SharedPreferences.saveCurrentMediaPath(getReactApplicationContext(), mCurrentMediaPath);
-
+ 
          return video;
-
+ 
      }
-
+ 
 +    private void notifySuccess(WritableMap readableMap) {
 +        boolean isNotifySent = resultCollector.notifySuccess(readableMap);
 +        if(!isNotifySent){
@@ -182,14 +180,14 @@ index 8bd1b60..8aca23a 100644
 @@ -55,9 +55,9 @@ class ResultCollector {
          return true;
      }
-
+ 
 -    synchronized void notifySuccess(WritableMap result) {
 +    synchronized boolean notifySuccess(WritableMap result) {
          if (!isRequestValid()) {
 -            return;
 +            return false;
          }
-
+ 
          if (multiple) {
 @@ -67,11 +67,14 @@ class ResultCollector {
              if (currentCount == waitCount) {
@@ -204,7 +202,7 @@ index 8bd1b60..8aca23a 100644
          }
 +        return false;
      }
-
+ 
      synchronized void notifyProblem(String code, String message) {
 diff --git a/node_modules/react-native-image-crop-picker/android/src/main/java/com/reactnative/ivpusic/imagepicker/patch30277/ArrayUtil.java b/node_modules/react-native-image-crop-picker/android/src/main/java/com/reactnative/ivpusic/imagepicker/patch30277/ArrayUtil.java
 new file mode 100644
@@ -749,7 +747,7 @@ index 1e0c273..40b54a1 100644
      export function clean(): Promise<void>;
      export function cleanSingle(path: string): Promise<void>;
 +    export function recoverLastImageUri(): Promise<MediaType<Image | Video> | undefined>;
-
+ 
      export interface ImageCropPicker {
          openPicker<O extends Options>(options: O): Promise<PossibleArray<O, MediaType<O>>>;
 @@ -480,6 +481,7 @@ declare module "react-native-image-crop-picker" {
@@ -758,5 +756,5 @@ index 1e0c273..40b54a1 100644
          cleanSingle(path: string): Promise<void>;
 +        recoverLastImageUri(): Promise<MediaType<Image | Video> | undefined>;
      }
-
+ 
      const ImageCropPicker: ImageCropPicker;
