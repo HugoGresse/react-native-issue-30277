@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     SafeAreaView,
     StyleSheet,
@@ -6,6 +6,7 @@ import {
     View,
     Text, Image,
     StatusBar, Pressable,
+    DeviceEventEmitter
 } from 'react-native';
 import ImagePicker from 'react-native-image-crop-picker';
 
@@ -14,9 +15,26 @@ import { PERMISSIONS } from 'react-native-permissions';
 import { requireExtStoragePermissionIfNeeded } from './permissions';
 
 const App: () => React$Node = () => {
-    const [photos, setPhotos] = useState([]);
+    const [photo, setPhoto] = useState(undefined);
+    const [photoRecovered, setPhotoRecovered] = useState(false)
 
-    const takePhoto = async () => {
+    useEffect(() => {
+        if (Platform.OS !== 'android') {
+            return
+        }
+
+        ImagePicker.recoverLastImageUri().then(image => {
+            if(image){
+                console.log("Image recovered", image);
+                setPhoto(image)
+                setPhotoRecovered(true)
+            }
+        })
+    }, [])
+
+
+    const takePhoto = (fromGallery = false) => async () => {
+        setPhotoRecovered(false)
         await requireExtStoragePermissionIfNeeded(PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE)
             .then(granted => {
                 if (granted) {
@@ -31,21 +49,26 @@ const App: () => React$Node = () => {
                 throw new Error('NO PERMISSIONS');
             })
             .then(() => {
+                if(fromGallery) {
+                    return ImagePicker.openPicker({
+                        compressImageMaxWidth: 1500,
+                        compressImageMaxHeight: 1500,
+                    });
+                }
                 return ImagePicker.openCamera({
-                    width: 300,
-                    height: 400,
-                    cropping: false,
+                    compressImageMaxWidth: 1500,
+                    compressImageMaxHeight: 1500,
                 });
             })
             .then(image => {
                 console.log('Image received', image);
-                setPhotos([{
+                setPhoto({
                     uri: image.uri,
                     path: image.path,
                     width: image.width,
                     height: image.height,
                     mime: 'image/jpeg',
-                }]);
+                });
             });
 
     };
@@ -63,16 +86,16 @@ const App: () => React$Node = () => {
                             <Text style={styles.sectionTitle}>React Native issue #30277 onActivityResult</Text>
                         </View>
 
-                        <Pressable onPress={takePhoto} style={styles.button}><Text>📸 Take photo</Text></Pressable>
+                        <Pressable onPress={takePhoto()} style={styles.button}><Text>📸 Take photo</Text></Pressable>
+                        <Pressable onPress={takePhoto(true)} style={styles.button}><Text>🌁 Pick image (usually no issue there)</Text></Pressable>
 
-                        {photos.length === 0 && <Text>NO PHOTOS</Text>}
-                        {
-                            photos.length > 0 && <Image source={{
-                                ...photos[0],
-                                uri: 'file:///' + photos[0].path,
-                            }} style={styles.previewImage}/>
-                        }
-
+                        <View style={styles.sectionContainer}>
+                            {photoRecovered && <Text>Photo recovered!</Text>}
+                            {photo ? <Image source={{
+                                ...photo,
+                                uri: photo.path,
+                            }} style={styles.previewImage}/> : <Text>NO PHOTO</Text>}
+                        </View>
                     </View>
                 </ScrollView>
             </SafeAreaView>
