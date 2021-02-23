@@ -1,0 +1,762 @@
+diff --git a/node_modules/react-native-image-crop-picker/android/src/main/java/com/reactnative/ivpusic/imagepicker/PickerModule.java b/node_modules/react-native-image-crop-picker/android/src/main/java/com/reactnative/ivpusic/imagepicker/PickerModule.java
+index c6b09a9..6ff68bb 100644
+--- a/node_modules/react-native-image-crop-picker/android/src/main/java/com/reactnative/ivpusic/imagepicker/PickerModule.java
++++ b/node_modules/react-native-image-crop-picker/android/src/main/java/com/reactnative/ivpusic/imagepicker/PickerModule.java
+@@ -15,8 +15,10 @@ import android.os.Build;
+ import android.os.Environment;
+ import android.provider.MediaStore;
+ import android.util.Base64;
+ import android.webkit.MimeTypeMap;
+
++import androidx.annotation.Nullable;
+ import androidx.core.app.ActivityCompat;
+ import androidx.core.content.FileProvider;
+
+@@ -32,6 +34,7 @@ import com.facebook.react.bridge.WritableMap;
+ import com.facebook.react.bridge.WritableNativeMap;
+ import com.facebook.react.modules.core.PermissionAwareActivity;
+ import com.facebook.react.modules.core.PermissionListener;
++import com.reactnative.ivpusic.imagepicker.patch30277.Patch30277SharedPreferences;
+ import com.yalantis.ucrop.UCrop;
+ import com.yalantis.ucrop.UCropActivity;
+
+@@ -99,11 +102,14 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
+     private ResultCollector resultCollector = new ResultCollector();
+     private Compression compression = new Compression();
+     private ReactApplicationContext reactContext;
++    private @Nullable ReadableMap lastReadableMap;
+
+     PickerModule(ReactApplicationContext reactContext) {
+         super(reactContext);
+         reactContext.addActivityEventListener(this);
+         this.reactContext = reactContext;
++
++        this.recoverLastImageUri(reactContext);
+     }
+
+     private String getTmpDir(Activity activity) {
+@@ -119,6 +125,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
+     }
+
+     private void setConfiguration(final ReadableMap options) {
++        Patch30277SharedPreferences.saveOptions(getReactApplicationContext(), options);
+         mediaType = options.hasKey("mediaType") ? options.getString("mediaType") : "any";
+         multiple = options.hasKey("multiple") && options.getBoolean("multiple");
+         includeBase64 = options.hasKey("includeBase64") && options.getBoolean("includeBase64");
+@@ -283,6 +290,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
+     @ReactMethod
+     public void openCamera(final ReadableMap options, final Promise promise) {
+         final Activity activity = getCurrentActivity();
++        lastReadableMap = null;
+
+         if (activity == null) {
+             promise.reject(E_ACTIVITY_DOES_NOT_EXIST, "Activity doesn't exist");
+@@ -306,6 +314,27 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
+         });
+     }
+
++    @ReactMethod
++    public void recoverLastImageUri(final Promise promise) {
++        if(lastReadableMap != null) {
++            promise.resolve(lastReadableMap);
++            lastReadableMap = null;
++        } else {
++            promise.resolve(null);
++        }
++    }
++
++    private void recoverLastImageUri(ReactApplicationContext reactContext) {
++        @Nullable Uri lastImageUri = Patch30277SharedPreferences.getLastTempImageUri(reactContext);
++        @Nullable ReadableMap optionsMap = Patch30277SharedPreferences.getOptions(reactContext);
++        @Nullable String mediaPath = Patch30277SharedPreferences.getCurrentMediaPath(reactContext);
++        if(lastImageUri != null && optionsMap != null && mediaPath != null) {
++            setConfiguration(optionsMap);
++            mCameraCaptureURI=lastImageUri;
++            mCurrentMediaPath = mediaPath;
++        }
++    }
++
+     private void initiateCamera(Activity activity) {
+
+         try {
+@@ -330,6 +359,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
+                         dataFile);
+             }
+
++            Patch30277SharedPreferences.saveLastTempImageUri(activity, mCameraCaptureURI);
+             cameraIntent.putExtra(MediaStore.EXTRA_OUTPUT, mCameraCaptureURI);
+
+             if (this.useFrontCamera) {
+@@ -382,6 +412,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
+     @ReactMethod
+     public void openPicker(final ReadableMap options, final Promise promise) {
+         final Activity activity = getCurrentActivity();
++        lastReadableMap = null;
+
+         if (activity == null) {
+             promise.reject(E_ACTIVITY_DOES_NOT_EXIST, "Activity doesn't exist");
+@@ -403,6 +434,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
+     @ReactMethod
+     public void openCropper(final ReadableMap options, final Promise promise) {
+         final Activity activity = getCurrentActivity();
++        lastReadableMap = null;
+
+         if (activity == null) {
+             promise.reject(E_ACTIVITY_DOES_NOT_EXIST, "Activity doesn't exist");
+@@ -493,7 +525,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
+             return;
+         }
+
+-        resultCollector.notifySuccess(getImage(activity, path));
++        this.notifySuccess(getImage(activity, path));
+     }
+
+     private Bitmap validateVideo(String path) throws Exception {
+@@ -541,7 +573,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
+                             video.putString("path", "file://" + videoPath);
+                             video.putString("modificationDate", String.valueOf(modificationDate));
+
+-                            resultCollector.notifySuccess(video);
++                            PickerModule.this.notifySuccess(video);
+                         } catch (Exception e) {
+                             resultCollector.notifyProblem(E_NO_IMAGE_DATA_FOUND, e);
+                         }
+@@ -748,7 +780,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
+
+                     // If recording a video getSelection handles resultCollector part itself and returns null
+                     if (result != null) {
+-                        resultCollector.notifySuccess(result);
++                        this.notifySuccess(result);
+                     }
+                 } catch (Exception ex) {
+                     resultCollector.notifyProblem(E_NO_IMAGE_DATA_FOUND, ex.getMessage());
+@@ -774,7 +806,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
+                         result.putMap("cropRect", PickerModule.getCroppedRectMap(data));
+
+                         resultCollector.setWaitCount(1);
+-                        resultCollector.notifySuccess(result);
++                        this.notifySuccess(result);
+                     } else {
+                         throw new Exception("Cannot crop video files");
+                     }
+@@ -795,6 +827,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
+             imagePickerResult(activity, requestCode, resultCode, data);
+         } else if (requestCode == CAMERA_PICKER_REQUEST) {
+             cameraPickerResult(activity, requestCode, resultCode, data);
++            Patch30277SharedPreferences.clear(activity);
+         } else if (requestCode == UCrop.REQUEST_CROP) {
+             croppingResult(activity, requestCode, resultCode, data);
+         }
+@@ -822,6 +855,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
+
+         // Save a file: path for use with ACTION_VIEW intents
+         mCurrentMediaPath = "file:" + image.getAbsolutePath();
++        Patch30277SharedPreferences.saveCurrentMediaPath(getReactApplicationContext(), mCurrentMediaPath);
+
+         return image;
+
+@@ -840,11 +874,19 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
+
+         // Save a file: path for use with ACTION_VIEW intents
+         mCurrentMediaPath = "file:" + video.getAbsolutePath();
++        Patch30277SharedPreferences.saveCurrentMediaPath(getReactApplicationContext(), mCurrentMediaPath);
+
+         return video;
+
+     }
+
++    private void notifySuccess(WritableMap readableMap) {
++        boolean isNotifySent = resultCollector.notifySuccess(readableMap);
++        if(!isNotifySent){
++            lastReadableMap = readableMap;
++        }
++    }
++
+     private static WritableMap getCroppedRectMap(Intent data) {
+         final int DEFAULT_VALUE = -1;
+         final WritableMap map = new WritableNativeMap();
+diff --git a/node_modules/react-native-image-crop-picker/android/src/main/java/com/reactnative/ivpusic/imagepicker/ResultCollector.java b/node_modules/react-native-image-crop-picker/android/src/main/java/com/reactnative/ivpusic/imagepicker/ResultCollector.java
+index 8bd1b60..8aca23a 100644
+--- a/node_modules/react-native-image-crop-picker/android/src/main/java/com/reactnative/ivpusic/imagepicker/ResultCollector.java
++++ b/node_modules/react-native-image-crop-picker/android/src/main/java/com/reactnative/ivpusic/imagepicker/ResultCollector.java
+@@ -55,9 +55,9 @@ class ResultCollector {
+         return true;
+     }
+
+-    synchronized void notifySuccess(WritableMap result) {
++    synchronized boolean notifySuccess(WritableMap result) {
+         if (!isRequestValid()) {
+-            return;
++            return false;
+         }
+
+         if (multiple) {
+@@ -67,11 +67,14 @@ class ResultCollector {
+             if (currentCount == waitCount) {
+                 promise.resolve(arrayResult);
+                 resultSent = true;
++                return true;
+             }
+         } else {
+             promise.resolve(result);
+             resultSent = true;
++            return true;
+         }
++        return false;
+     }
+
+     synchronized void notifyProblem(String code, String message) {
+diff --git a/node_modules/react-native-image-crop-picker/android/src/main/java/com/reactnative/ivpusic/imagepicker/patch30277/ArrayUtil.java b/node_modules/react-native-image-crop-picker/android/src/main/java/com/reactnative/ivpusic/imagepicker/patch30277/ArrayUtil.java
+new file mode 100644
+index 0000000..7786b0c
+--- /dev/null
++++ b/node_modules/react-native-image-crop-picker/android/src/main/java/com/reactnative/ivpusic/imagepicker/patch30277/ArrayUtil.java
+@@ -0,0 +1,150 @@
++/*
++  ArrayUtil exposes a set of helper methods for working with
++  ReadableArray (by React Native), Object[], and JSONArray.
++  MIT License
++  Copyright (c) 2020 Marc Mendiola
++  Permission is hereby granted, free of charge, to any person obtaining a copy
++  of this software and associated documentation files (the "Software"), to deal
++  in the Software without restriction, including without limitation the rights
++  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++  copies of the Software, and to permit persons to whom the Software is
++  furnished to do so, subject to the following conditions:
++  The above copyright notice and this permission notice shall be included in all
++  copies or substantial portions of the Software.
++  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++  SOFTWARE.
++ */
++
++package com.reactnative.ivpusic.imagepicker.patch30277;
++
++import com.facebook.react.bridge.Arguments;
++import com.facebook.react.bridge.ReadableArray;
++import com.facebook.react.bridge.ReadableType;
++import com.facebook.react.bridge.WritableArray;
++
++import org.json.JSONArray;
++import org.json.JSONException;
++import org.json.JSONObject;
++
++import java.util.Map;
++
++public class ArrayUtil {
++
++    public static JSONArray toJSONArray(ReadableArray readableArray) throws JSONException {
++        JSONArray jsonArray = new JSONArray();
++
++        for (int i = 0; i < readableArray.size(); i++) {
++            ReadableType type = readableArray.getType(i);
++
++            switch (type) {
++                case Null:
++                    jsonArray.put(i, null);
++                    break;
++                case Boolean:
++                    jsonArray.put(i, readableArray.getBoolean(i));
++                    break;
++                case Number:
++                    jsonArray.put(i, readableArray.getDouble(i));
++                    break;
++                case String:
++                    jsonArray.put(i, readableArray.getString(i));
++                    break;
++                case Map:
++                    jsonArray.put(i, MapUtil.toJSONObject(readableArray.getMap(i)));
++                    break;
++                case Array:
++                    jsonArray.put(i, ArrayUtil.toJSONArray(readableArray.getArray(i)));
++                    break;
++            }
++        }
++
++        return jsonArray;
++    }
++
++    public static Object[] toArray(JSONArray jsonArray) throws JSONException {
++        Object[] array = new Object[jsonArray.length()];
++
++        for (int i = 0; i < jsonArray.length(); i++) {
++            Object value = jsonArray.get(i);
++
++            if (value instanceof JSONObject) {
++                value = MapUtil.toMap((JSONObject) value);
++            }
++            if (value instanceof JSONArray) {
++                value = ArrayUtil.toArray((JSONArray) value);
++            }
++
++            array[i] = value;
++        }
++
++        return array;
++    }
++
++    public static Object[] toArray(ReadableArray readableArray) {
++        Object[] array = new Object[readableArray.size()];
++
++        for (int i = 0; i < readableArray.size(); i++) {
++            ReadableType type = readableArray.getType(i);
++
++            switch (type) {
++                case Null:
++                    array[i] = null;
++                    break;
++                case Boolean:
++                    array[i] = readableArray.getBoolean(i);
++                    break;
++                case Number:
++                    array[i] = readableArray.getDouble(i);
++                    break;
++                case String:
++                    array[i] = readableArray.getString(i);
++                    break;
++                case Map:
++                    array[i] = MapUtil.toMap(readableArray.getMap(i));
++                    break;
++                case Array:
++                    array[i] = ArrayUtil.toArray(readableArray.getArray(i));
++                    break;
++            }
++        }
++
++        return array;
++    }
++
++    public static WritableArray toWritableArray(Object[] array) {
++        WritableArray writableArray = Arguments.createArray();
++
++        for (int i = 0; i < array.length; i++) {
++            Object value = array[i];
++
++            if (value == null) {
++                writableArray.pushNull();
++            }
++            if (value instanceof Boolean) {
++                writableArray.pushBoolean((Boolean) value);
++            }
++            if (value instanceof Double) {
++                writableArray.pushDouble((Double) value);
++            }
++            if (value instanceof Integer) {
++                writableArray.pushInt((Integer) value);
++            }
++            if (value instanceof String) {
++                writableArray.pushString((String) value);
++            }
++            if (value instanceof Map) {
++                writableArray.pushMap(MapUtil.toWritableMap((Map<String, Object>) value));
++            }
++            if (value.getClass().isArray()) {
++                writableArray.pushArray(ArrayUtil.toWritableArray((Object[]) value));
++            }
++        }
++
++        return writableArray;
++    }
++}
+\ No newline at end of file
+diff --git a/node_modules/react-native-image-crop-picker/android/src/main/java/com/reactnative/ivpusic/imagepicker/patch30277/MapUtil.java b/node_modules/react-native-image-crop-picker/android/src/main/java/com/reactnative/ivpusic/imagepicker/patch30277/MapUtil.java
+new file mode 100644
+index 0000000..59d33d3
+--- /dev/null
++++ b/node_modules/react-native-image-crop-picker/android/src/main/java/com/reactnative/ivpusic/imagepicker/patch30277/MapUtil.java
+@@ -0,0 +1,158 @@
++/*
++        MapUtil exposes a set of helper methods for working with
++        ReadableMap (by React Native), Map<String, Object>, and JSONObject.
++        MIT License
++        Copyright (c) 2020 Marc Mendiola
++        Permission is hereby granted, free of charge, to any person obtaining a copy
++        of this software and associated documentation files (the "Software"), to deal
++        in the Software without restriction, including without limitation the rights
++        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++        copies of the Software, and to permit persons to whom the Software is
++        furnished to do so, subject to the following conditions:
++        The above copyright notice and this permission notice shall be included in all
++        copies or substantial portions of the Software.
++        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++        SOFTWARE.
++        */
++
++package com.reactnative.ivpusic.imagepicker.patch30277;
++
++import com.facebook.react.bridge.Arguments;
++import com.facebook.react.bridge.ReadableMap;
++import com.facebook.react.bridge.ReadableMapKeySetIterator;
++import com.facebook.react.bridge.ReadableType;
++import com.facebook.react.bridge.WritableMap;
++
++import org.json.JSONArray;
++import org.json.JSONException;
++import org.json.JSONObject;
++
++import java.util.HashMap;
++import java.util.Iterator;
++import java.util.Map;
++
++public class MapUtil {
++
++    public static JSONObject toJSONObject(ReadableMap readableMap) throws JSONException {
++        JSONObject jsonObject = new JSONObject();
++
++        ReadableMapKeySetIterator iterator = readableMap.keySetIterator();
++
++        while (iterator.hasNextKey()) {
++            String key = iterator.nextKey();
++            ReadableType type = readableMap.getType(key);
++
++            switch (type) {
++                case Null:
++                    jsonObject.put(key, null);
++                    break;
++                case Boolean:
++                    jsonObject.put(key, readableMap.getBoolean(key));
++                    break;
++                case Number:
++                    jsonObject.put(key, readableMap.getDouble(key));
++                    break;
++                case String:
++                    jsonObject.put(key, readableMap.getString(key));
++                    break;
++                case Map:
++                    jsonObject.put(key, MapUtil.toJSONObject(readableMap.getMap(key)));
++                    break;
++                case Array:
++                    jsonObject.put(key, ArrayUtil.toJSONArray(readableMap.getArray(key)));
++                    break;
++            }
++        }
++
++        return jsonObject;
++    }
++
++    public static Map<String, Object> toMap(JSONObject jsonObject) throws JSONException {
++        Map<String, Object> map = new HashMap<>();
++        Iterator<String> iterator = jsonObject.keys();
++
++        while (iterator.hasNext()) {
++            String key = iterator.next();
++            Object value = jsonObject.get(key);
++
++            if (value instanceof JSONObject) {
++                value = MapUtil.toMap((JSONObject) value);
++            }
++            if (value instanceof JSONArray) {
++                value = ArrayUtil.toArray((JSONArray) value);
++            }
++
++            map.put(key, value);
++        }
++
++        return map;
++    }
++
++    public static Map<String, Object> toMap(ReadableMap readableMap) {
++        Map<String, Object> map = new HashMap<>();
++        ReadableMapKeySetIterator iterator = readableMap.keySetIterator();
++
++        while (iterator.hasNextKey()) {
++            String key = iterator.nextKey();
++            ReadableType type = readableMap.getType(key);
++
++            switch (type) {
++                case Null:
++                    map.put(key, null);
++                    break;
++                case Boolean:
++                    map.put(key, readableMap.getBoolean(key));
++                    break;
++                case Number:
++                    map.put(key, readableMap.getDouble(key));
++                    break;
++                case String:
++                    map.put(key, readableMap.getString(key));
++                    break;
++                case Map:
++                    map.put(key, MapUtil.toMap(readableMap.getMap(key)));
++                    break;
++                case Array:
++                    map.put(key, ArrayUtil.toArray(readableMap.getArray(key)));
++                    break;
++            }
++        }
++
++        return map;
++    }
++
++    public static WritableMap toWritableMap(Map<String, Object> map) {
++        WritableMap writableMap = Arguments.createMap();
++        Iterator iterator = map.entrySet().iterator();
++
++        while (iterator.hasNext()) {
++            Map.Entry pair = (Map.Entry) iterator.next();
++            Object value = pair.getValue();
++
++            if (value == null) {
++                writableMap.putNull((String) pair.getKey());
++            } else if (value instanceof Boolean) {
++                writableMap.putBoolean((String) pair.getKey(), (Boolean) value);
++            } else if (value instanceof Double) {
++                writableMap.putDouble((String) pair.getKey(), (Double) value);
++            } else if (value instanceof Integer) {
++                writableMap.putInt((String) pair.getKey(), (Integer) value);
++            } else if (value instanceof String) {
++                writableMap.putString((String) pair.getKey(), (String) value);
++            } else if (value instanceof Map) {
++                writableMap.putMap((String) pair.getKey(), MapUtil.toWritableMap((Map<String, Object>) value));
++            } else if (value.getClass() != null && value.getClass().isArray()) {
++                writableMap.putArray((String) pair.getKey(), ArrayUtil.toWritableArray((Object[]) value));
++            }
++
++            iterator.remove();
++        }
++
++        return writableMap;
++    }
++}
+\ No newline at end of file
+diff --git a/node_modules/react-native-image-crop-picker/android/src/main/java/com/reactnative/ivpusic/imagepicker/patch30277/Patch30277SharedPreferences.java b/node_modules/react-native-image-crop-picker/android/src/main/java/com/reactnative/ivpusic/imagepicker/patch30277/Patch30277SharedPreferences.java
+new file mode 100644
+index 0000000..e46bef1
+--- /dev/null
++++ b/node_modules/react-native-image-crop-picker/android/src/main/java/com/reactnative/ivpusic/imagepicker/patch30277/Patch30277SharedPreferences.java
+@@ -0,0 +1,93 @@
++package com.reactnative.ivpusic.imagepicker.patch30277;
++
++import android.content.Context;
++import android.content.SharedPreferences;
++import android.net.Uri;
++
++import com.facebook.react.bridge.ReadableMap;
++
++import javax.annotation.Nullable;
++
++public class Patch30277SharedPreferences {
++
++    private static final String SP_LAST_IMAGE_URI = "Patch60277SharedPreferences/lastImageUri";
++    private static final String SP_LAST_OPTIONS = "Patch60277SharedPreferences/options";
++    private static final String SP_CURRENT_MEDIA_PATH = "Patch60277SharedPreferences/currentMediaPath";
++
++    public static void clear(Context context) {
++        if(context == null){
++            return;
++        }
++        SharedPreferences sharedPref = getSP(context);
++        SharedPreferences.Editor editor = sharedPref.edit().clear();
++        editor.apply();
++    }
++
++    public static void saveLastTempImageUri(Context context, Uri uri) {
++        if(context == null){
++            return;
++        }
++        SharedPreferences sharedPref = getSP(context);
++
++        SharedPreferences.Editor editor = sharedPref.edit();
++        editor.putString(SP_LAST_IMAGE_URI, uri.toString());
++        editor.apply();
++    }
++
++    @Nullable
++    public static Uri getLastTempImageUri(Context context) {
++        if(context == null){
++            return null;
++        }
++        SharedPreferences sharedPref = getSP(context);
++        String spString = sharedPref.getString(SP_LAST_IMAGE_URI, null);
++        if(spString != null){
++            return Uri.parse(spString);
++        }
++
++        return null;
++    }
++
++    public static void saveCurrentMediaPath(Context context, String path) {
++        if(context == null){
++            return;
++        }
++        SharedPreferences sharedPref = getSP(context);
++        SharedPreferences.Editor editor = sharedPref.edit();
++        editor.putString(SP_CURRENT_MEDIA_PATH,  path);
++        editor.apply();
++    }
++
++    @Nullable
++    public static String getCurrentMediaPath(Context context) {
++        if(context == null){
++            return null;
++        }
++        SharedPreferences sharedPref = getSP(context);
++        return sharedPref.getString(SP_CURRENT_MEDIA_PATH, null);
++    }
++
++    public static void saveOptions(Context context,@Nullable ReadableMap readableMap) {
++        if(context == null || readableMap == null){
++            return;
++        }
++        SharedPreferences sharedPref = getSP(context);
++        SharedPreferences.Editor editor = sharedPref.edit();
++        editor.putString(SP_LAST_OPTIONS, ReadableMapUtil.toString(readableMap));
++        editor.apply();
++    }
++
++    @Nullable
++    public static ReadableMap getOptions(Context context) {
++        if(context == null){
++            return null;
++        }
++        SharedPreferences sharedPref = getSP(context);
++        return ReadableMapUtil.toReadableMap(sharedPref.getString(SP_LAST_OPTIONS, null));
++    }
++
++    private static SharedPreferences getSP(Context context) {
++        return context.getSharedPreferences("Patch60277SharedPreferences", Context.MODE_PRIVATE);
++    }
++
++}
+diff --git a/node_modules/react-native-image-crop-picker/android/src/main/java/com/reactnative/ivpusic/imagepicker/patch30277/PickerModule30277Workaround.java b/node_modules/react-native-image-crop-picker/android/src/main/java/com/reactnative/ivpusic/imagepicker/patch30277/PickerModule30277Workaround.java
+new file mode 100644
+index 0000000..9546493
+--- /dev/null
++++ b/node_modules/react-native-image-crop-picker/android/src/main/java/com/reactnative/ivpusic/imagepicker/patch30277/PickerModule30277Workaround.java
+@@ -0,0 +1,60 @@
++package com.reactnative.ivpusic.imagepicker.patch30277;
++
++import android.content.Intent;
++import android.util.Log;
++
++import com.facebook.react.ReactActivity;
++import com.facebook.react.ReactInstanceManager;
++import com.facebook.react.bridge.ReactContext;
++
++import java.lang.ref.WeakReference;
++
++import javax.annotation.Nullable;
++
++public class PickerModule30277Workaround implements ReactInstanceManager.ReactInstanceEventListener {
++
++    private @Nullable
++    ActivityResultData mActivityResultData;
++    private @Nullable
++    WeakReference<ReactActivity> mReactActivity;
++
++
++    public void onActivityResultTriggered(ReactInstanceManager reactInstanceManager, int requestCode, int resultCode, Intent data) {
++        if (reactInstanceManager.getCurrentReactContext() == null) {
++            mActivityResultData = new ActivityResultData(requestCode, resultCode, data);
++        } else {
++            mActivityResultData = null;
++        }
++    }
++
++    public void onActivityResume(ReactActivity activity, ReactInstanceManager reactInstanceManager) {
++        if (mActivityResultData != null) {
++            mReactActivity = new WeakReference<>(activity);
++        }
++        reactInstanceManager.addReactInstanceEventListener(this);
++    }
++
++    public void onActivityStop(ReactInstanceManager reactInstanceManager) {
++        reactInstanceManager.removeReactInstanceEventListener(this);
++    }
++
++    @Override
++    public void onReactContextInitialized(ReactContext context) {
++        if (mActivityResultData != null && mReactActivity != null && mReactActivity.get() != null) {
++            context.onActivityResult(mReactActivity.get(), mActivityResultData.requestCode, mActivityResultData.resultCode, mActivityResultData.data);
++        }
++    }
++}
++
++class ActivityResultData {
++
++    public int requestCode;
++    public int resultCode;
++    public Intent data;
++
++    public ActivityResultData(int requestCode, int resultCode, Intent data) {
++        this.requestCode = requestCode;
++        this.resultCode = resultCode;
++        this.data = data;
++    }
++}
+\ No newline at end of file
+diff --git a/node_modules/react-native-image-crop-picker/android/src/main/java/com/reactnative/ivpusic/imagepicker/patch30277/ReadableMapUtil.java b/node_modules/react-native-image-crop-picker/android/src/main/java/com/reactnative/ivpusic/imagepicker/patch30277/ReadableMapUtil.java
+new file mode 100644
+index 0000000..adcc904
+--- /dev/null
++++ b/node_modules/react-native-image-crop-picker/android/src/main/java/com/reactnative/ivpusic/imagepicker/patch30277/ReadableMapUtil.java
+@@ -0,0 +1,40 @@
++package com.reactnative.ivpusic.imagepicker.patch30277;
++
++import com.facebook.react.bridge.ReadableMap;
++
++import org.json.JSONException;
++import org.json.JSONObject;
++
++import javax.annotation.Nullable;
++
++public class ReadableMapUtil {
++
++    @Nullable
++    public static String toString(ReadableMap map) {
++
++        try {
++            JSONObject options = MapUtil.toJSONObject(map);
++
++            return options.toString();
++        } catch (JSONException e) {
++            e.printStackTrace();
++        }
++        return null;
++    }
++
++    @Nullable
++    public static ReadableMap toReadableMap(@Nullable String json) {
++        if (json == null) {
++            return null;
++        }
++        try {
++            JSONObject jsonObject = new JSONObject(json);
++            return MapUtil.toWritableMap(MapUtil.toMap(jsonObject));
++        } catch (JSONException err) {
++            err.printStackTrace();
++        }
++
++        return null;
++    }
++
++}
+diff --git a/node_modules/react-native-image-crop-picker/index.d.ts b/node_modules/react-native-image-crop-picker/index.d.ts
+index 1e0c273..40b54a1 100644
+--- a/node_modules/react-native-image-crop-picker/index.d.ts
++++ b/node_modules/react-native-image-crop-picker/index.d.ts
+@@ -473,6 +473,7 @@ declare module "react-native-image-crop-picker" {
+     export function openCropper(options: CropperOptions): Promise<Image>;
+     export function clean(): Promise<void>;
+     export function cleanSingle(path: string): Promise<void>;
++    export function recoverLastImageUri(): Promise<MediaType<Image | Video> | undefined>;
+
+     export interface ImageCropPicker {
+         openPicker<O extends Options>(options: O): Promise<PossibleArray<O, MediaType<O>>>;
+@@ -480,6 +481,7 @@ declare module "react-native-image-crop-picker" {
+         openCropper(options: CropperOptions): Promise<Image>;
+         clean(): Promise<void>;
+         cleanSingle(path: string): Promise<void>;
++        recoverLastImageUri(): Promise<MediaType<Image | Video> | undefined>;
+     }
+
+     const ImageCropPicker: ImageCropPicker;
