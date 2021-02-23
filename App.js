@@ -33,7 +33,8 @@ const App: () => React$Node = () => {
     }, [])
 
 
-    const takePhoto = async () => {
+    const takePhoto = (fromGallery = false) => async () => {
+        setPhotoRecovered(false)
         await requireExtStoragePermissionIfNeeded(PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE)
             .then(granted => {
                 if (granted) {
@@ -48,6 +49,12 @@ const App: () => React$Node = () => {
                 throw new Error('NO PERMISSIONS');
             })
             .then(() => {
+                if(fromGallery) {
+                    return ImagePicker.openPicker({
+                        compressImageMaxWidth: 1500,
+                        compressImageMaxHeight: 1500,
+                    });
+                }
                 return ImagePicker.openCamera({
                     compressImageMaxWidth: 1500,
                     compressImageMaxHeight: 1500,
@@ -79,7 +86,8 @@ const App: () => React$Node = () => {
                             <Text style={styles.sectionTitle}>React Native issue #30277 onActivityResult</Text>
                         </View>
 
-                        <Pressable onPress={takePhoto} style={styles.button}><Text>📸 Take photo</Text></Pressable>
+                        <Pressable onPress={takePhoto()} style={styles.button}><Text>📸 Take photo</Text></Pressable>
+                        <Pressable onPress={takePhoto(true)} style={styles.button}><Text>🌁 Pick image (usually no issue there)</Text></Pressable>
 
                         <View style={styles.sectionContainer}>
                             {photoRecovered && <Text>Photo recovered!</Text>}
