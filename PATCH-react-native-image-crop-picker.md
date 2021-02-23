@@ -19,15 +19,6 @@ This is a first patch version, only for the camera, and has not been yet tested 
     
         private final PickerModule30277Workaround mPickerModule30277Workaround = new PickerModule30277Workaround();
     
-        /**
-         * Returns the name of the main component registered from JavaScript. This is used to schedule
-         * rendering of the component.
-         */
-        @Override
-        protected String getMainComponentName() {
-            return "threeZeroTwoSevenSeven";
-        }
-    
         @Override
         public void onActivityResult(int requestCode, int resultCode, Intent data) {
             super.onActivityResult(requestCode, resultCode, data);
