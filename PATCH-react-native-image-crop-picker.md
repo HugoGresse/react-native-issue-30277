@@ -5,7 +5,7 @@ This is a first patch version, only for the camera, and has not been yet tested 
 
 ## Setup
 
-1. Copy the [patch file]() to your project `/patch` directory
+1. Copy the [patch file](https://github.com/HugoGresse/react-native-issue-30277/blob/main/patches/react-native-image-crop-picker%2B0.36.0.patch) to your project `/patch` directory
 2. Apply the patch: 
     - if you already have `patch-package` setup: `npm i`
     - for new `patch-package` users, follow [those instructions](https://github.com/ds300/patch-package#readme) and then `npm i`
