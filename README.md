@@ -13,6 +13,7 @@ Details about this can be found on the issue by [zsweigart on RN repo #30277](ht
 **Devices with reproduction** 
 - Xiaomi Redmi 7A with MIUI 12.0.1 (not older version), verified ✅ 
 - Xiaomi Redmi 8A with MIUI 12.0.1, verified ❎
+- Xiaomi Mi 9 SE with MIUI 12.0.3
 - _Add a pull request if you can reproduce this on other devices_
 
 ## Workaround
