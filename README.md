@@ -16,6 +16,9 @@ Details about this can be found on the issue by [zsweigart on RN repo #30277](ht
 - Xiaomi Mi 9 SE with MIUI 12.0.3
 - _Add a pull request if you can reproduce this on other devices_
 
+**Device where the fix does not work**
+- Huawei Psmart 2019,  android 10
+
 ## Workaround
 
 Available workaround: 
