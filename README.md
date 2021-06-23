@@ -26,6 +26,10 @@ Available workaround:
 
 You can use the Android project from this repo to dig into the issue and submit a patch for your own module. 
 
+## Results
+
+During one month, Pl@ntNet android app recovered 330k images using this method which represent ~1% of image picked within the app. 
+
 ## Related issues
 
 **react-native-image-crop-picker**
